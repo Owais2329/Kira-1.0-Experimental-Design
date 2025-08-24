@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Kira</title>
+  <link rel="shortcut icon" href="/Frontend/Assets/img/logo.ico" type="image/x-icon" />
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
+
+  <!-- Particle.js -->
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+  <!-- Animate.css & Textillate deps -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-dark text-light">
+  <!-- Background Particles -->
+  <div id="particles-js"></div>
+
+  <!-- Central Orb / Visualizer -->
+  <div class="square" aria-hidden="true">
+    <span></span>
+    <span></span>
+    <span></span>
+    <canvas id="particleCanvas" width="400" height="400"></canvas>
+    <div class="core"></div>
+  </div>
+
+  <!-- Animated Tagline / System status line -->
+  <div class="top-text text" id="statusTicker" aria-live="polite"></div>
+
+  <!-- HUD: tiny status badges -->
+  <div class="position-fixed top-0 end-0 p-3 d-flex gap-2 flex-wrap" style="z-index: 1080">
+    <span class="badge bg-secondary" id="badge-conn" title="Connection">WS: <span data-bind="ws-state">…</span></span>
+    <span class="badge bg-secondary" id="badge-mic" title="Microphone">Mic: <span data-bind="mic-state">off</span></span>
+    <span class="badge bg-secondary" id="badge-wake" title="Wake word">Wake: <span data-bind="wake-state">off</span></span>
+    <span class="badge bg-secondary" id="badge-lang" title="Language">Lang: <span data-bind="lang">en</span></span>
+    <span class="badge bg-secondary" id="badge-privacy" title="Privacy mode"><i class="bi bi-shield-lock"></i> <span data-bind="privacy">std</span></span>
+  </div>
+
+  <!-- Floating Radial Menu -->
+  <div class="menu-container" aria-label="Quick actions">
+    <button class="menu-btn" id="menuToggle" aria-expanded="false" aria-controls="menuItems">
+      <i class="bi bi-list"></i>
+    </button>
+    <div class="menu-items" id="menuItems" role="menu">
+      <button class="menu-item" id="micBtn" role="menuitem" title="Talk"><i class="bi bi-mic"></i></button>
+      <button class="menu-item" id="chatBtn" role="menuitem" title="Chat"><i class="bi bi-chat-dots"></i></button>
+      <button class="menu-item" id="settingsBtn" role="menuitem" title="Settings"><i class="bi bi-gear"></i></button>
+      <button class="menu-item" id="attachBtn" role="menuitem" title="Attach files"><i class="bi bi-paperclip"></i></button>
+      <button class="menu-item" id="dashBtn" role="menuitem" title="Dashboard"><i class="bi bi-grid"></i></button>
+    </div>
+  </div>
+
+  <!-- Offcanvas: Chat / Transcript -->
+  <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="chatPanel" aria-labelledby="chatPanelLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="chatPanelLabel">Kira • Conversation</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column gap-2">
+      <div id="chatHistory" class="flex-grow-1 overflow-auto pe-1" aria-live="polite"></div>
+      <div class="d-flex gap-2 align-items-center">
+        <button id="pttBtn" class="btn btn-outline-light" title="Hold to talk"><i class="bi bi-mic-fill"></i></button>
+        <input id="userText" class="form-control" placeholder="Type a message…" autocomplete="off" />
+        <button id="sendBtn" class="btn btn-primary"><i class="bi bi-send"></i></button>
+        <button id="translateBtn" class="btn btn-outline-info" title="Translate on the fly"><i class="bi bi-translate"></i></button>
+      </div>
+      <div class="small text-secondary" id="liveSubtitles" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Settings / Features Control -->
+  <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header">
+          <h5 class="modal-title" id="settingsLabel">Kira Settings & Features</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-voice" type="button" role="tab">Voice</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-stt" type="button" role="tab">STT</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-memory" type="button" role="tab">Memory</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-integrations" type="button" role="tab">Integrations</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-privacy" type="button" role="tab">Privacy</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-vision" type="button" role="tab">Vision/AR</button></li>
+          </ul>
+          <div class="tab-content pt-3">
+            <!-- Voice TTS -->
+            <div class="tab-pane fade show active" id="tab-voice" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Voice</label>
+                  <select id="voiceSelect" class="form-select" aria-label="TTS voice"></select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Emotion</label>
+                  <select id="voiceEmotion" class="form-select">
+                    <option value="neutral">Neutral</option>
+                    <option value="cheerful">Cheerful</option>
+                    <option value="empathetic">Empathetic</option>
+                    <option value="serious">Serious</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Speaking Rate</label>
+                  <input type="range" id="voiceRate" class="form-range" min="0.5" max="1.5" value="1" step="0.05" />
+                </div>
+              </div>
+            </div>
+
+            <!-- STT / Wake Word / Languages -->
+            <div class="tab-pane fade" id="tab-stt" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wakeWordToggle" />
+                    <label class="form-check-label" for="wakeWordToggle">Enable wake word ("Hey Kira")</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Recognition Language</label>
+                  <select id="sttLang" class="form-select">
+                    <option value="en">English</option>
+                    <option value="ur">Urdu</option>
+                    <option value="ar">Arabic</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="zh">Chinese</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="liveTranslateToggle" />
+                    <label class="form-check-label" for="liveTranslateToggle">Live translate to selected voice language</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Memory -->
+            <div class="tab-pane fade" id="tab-memory" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="shortMemoryToggle" checked />
+                    <label class="form-check-label" for="shortMemoryToggle">Session memory</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="longMemoryToggle" />
+                    <label class="form-check-label" for="longMemoryToggle">Long-term personalization</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <button id="exportMemBtn" class="btn btn-outline-light w-100"><i class="bi bi-download"></i> Export memory</button>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Notes / Preferences</label>
+                  <textarea id="userPrefs" class="form-control" rows="3" placeholder="e.g., I prefer a calm voice at night, coffee at 8am, gym Mon/Wed/Fri…"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Integrations -->
+            <div class="tab-pane fade" id="tab-integrations" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <h6>Smart Home</h6>
+                  <div class="form-text">Home Assistant / Hue / MQTT</div>
+                  <input id="haBaseUrl" class="form-control mb-2" placeholder="Home Assistant URL" />
+                  <input id="haToken" class="form-control" placeholder="Long-Lived Access Token" />
+                </div>
+                <div class="col-md-6">
+                  <h6>Media & Productivity</h6>
+                  <div class="row g-2">
+                    <div class="col-12"><input id="spotifyToken" class="form-control" placeholder="Spotify OAuth Token" /></div>
+                    <div class="col-12"><input id="calendarConn" class="form-control" placeholder="Calendar connection (ICS/API)" /></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Privacy / Security -->
+            <div class="tab-pane fade" id="tab-privacy" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="privacyModeToggle" />
+                    <label class="form-check-label" for="privacyModeToggle">Private mode (no logging)</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="encryptToggle" checked />
+                    <label class="form-check-label" for="encryptToggle">Encrypt local storage</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="biometricToggle" />
+                    <label class="form-check-label" for="biometricToggle">Voiceprint / Face unlock</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vision / AR -->
+            <div class="tab-pane fade" id="tab-vision" role="tabpanel">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="cameraToggle" />
+                    <label class="form-check-label" for="cameraToggle">Enable camera (CV)</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="emotionToggle" />
+                    <label class="form-check-label" for="emotionToggle">Emotion detection</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="arOverlayToggle" />
+                    <label class="form-check-label" for="arOverlayToggle">AR overlay</label>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <div class="ratio ratio-16x9 bg-black rounded-3 overflow-hidden">
+                    <video id="cameraView" autoplay playsinline muted class="w-100 h-100"></video>
+                    <canvas id="visionCanvas" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button id="saveSettingsBtn" class="btn btn-primary"><i class="bi bi-check2"></i> Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Attachments / File Upload -->
+  <div class="modal fade" id="attachModal" tabindex="-1" aria-labelledby="attachLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header">
+          <h5 class="modal-title" id="attachLabel">Attach files</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input class="form-control" type="file" id="fileInput" multiple />
+          <div class="form-text">Docs, images, audio. Used for summarization, CV, or automation.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button id="uploadBtn" class="btn btn-primary"><i class="bi bi-cloud-arrow-up"></i> Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard (placeholder) -->
+  <div class="offcanvas offcanvas-bottom text-bg-dark" tabindex="-1" id="dashPanel" aria-labelledby="dashLabel" style="height: 50vh">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="dashLabel">Kira • Dashboard</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card bg-secondary-subtle h-100">
+            <div class="card-body">
+              <h6 class="card-title">Today</h6>
+              <ul class="small mb-0" id="todayList"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-secondary-subtle h-100">
+            <div class="card-body">
+              <h6 class="card-title">Tasks</h6>
+              <ul class="small mb-0" id="taskList"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-secondary-subtle h-100">
+            <div class="card-body">
+              <h6 class="card-title">Devices</h6>
+              <ul class="small mb-0" id="deviceList"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1080">
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <!-- Hidden audio sinks for TTS / earcons -->
+  <audio id="ttsAudio"></audio>
+  <audio id="earconStart" src="/Frontend/Assets/sfx/start.mp3" preload="auto"></audio>
+  <audio id="earconEnd" src="/Frontend/Assets/sfx/end.mp3" preload="auto"></audio>
+
+  <!-- Revolving Orb Particles Script -->
+  <script>
+    (function () {
+      const canvas = document.getElementById('particleCanvas');
+      const ctx = canvas.getContext('2d');
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const numParticles = 100;
+      const particles = [];
+      for (let i = 0; i < numParticles; i++) {
+        const angle = (Math.PI * 2 * i) / numParticles;
+        const radius = 140 + Math.random() * 30;
+        particles.push({ angle, radius, speed: 0.01 + Math.random() * 0.01 });
+      }
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach((p) => {
+          p.angle += p.speed;
+          const x = centerX + Math.cos(p.angle) * p.radius;
+          const y = centerY + Math.sin(p.angle) * p.radius;
+          ctx.beginPath();
+          ctx.arc(x, y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = 'cyan';
+          ctx.shadowColor = 'deepskyblue';
+          ctx.shadowBlur = 15;
+          ctx.fill();
+        });
+        requestAnimationFrame(animate);
+      }
+      animate();
+    })();
+  </script>
+
+  <!-- Particle.js Config -->
+  <script>
+    particlesJS('particles-js', {
+      particles: {
+        number: { value: 80, density: { enable: true, value_area: 800 } },
+        color: { value: '#ffffff' },
+        shape: { type: 'circle' },
+        opacity: { value: 0.5 },
+        size: { value: 3, random: true },
+        line_linked: { enable: true, distance: 150, color: '#ffffff', opacity: 0.4, width: 1 },
+        move: { enable: true, speed: 6 }
+      },
+      interactivity: {
+        detect_on: 'canvas',
+        events: { onhover: { enable: true, mode: 'grab' }, onclick: { enable: true, mode: 'push' } }
+      },
+      retina_detect: true
+    });
+  </script>
+
+  <!-- jQuery + Lettering.js + Textillate -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lettering.js/0.7.0/jquery.lettering.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/textillate/0.4.0/jquery.textillate.min.js"></script>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- App Scripts (defer heavy logic to these) -->
+  <script src="main.js" defer></script>
+  <script src="script.js" defer></script>
+  <script src="/eel.js" defer></script>
+
+  <!-- Minimal bootstrapping for UI toggles (safe; core logic lives in main.js) -->
+  <script>
+    // Menu toggle opens widgets
+    (function () {
+      const menuBtn = document.getElementById('menuToggle');
+      const items = document.getElementById('menuItems');
+      let open = false;
+      menuBtn?.addEventListener('click', () => {
+        open = !open;
+        menuBtn.setAttribute('aria-expanded', String(open));
+        items?.classList.toggle('open', open);
+      });
+
+      const chatBtn = document.getElementById('chatBtn');
+      chatBtn?.addEventListener('click', () => new bootstrap.Offcanvas('#chatPanel').toggle());
+
+      const settingsBtn = document.getElementById('settingsBtn');
+      settingsBtn?.addEventListener('click', () => new bootstrap.Modal('#settingsModal').toggle());
+
+      const attachBtn = document.getElementById('attachBtn');
+      attachBtn?.addEventListener('click', () => new bootstrap.Modal('#attachModal').toggle());
+
+      const dashBtn = document.getElementById('dashBtn');
+      dashBtn?.addEventListener('click', () => new bootstrap.Offcanvas('#dashPanel').toggle());
+    })();
+
+    // Register service worker (optional offline + notifications)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
